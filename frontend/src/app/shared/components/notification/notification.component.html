@@ -1,0 +1,17 @@
+<div 
+  class="notification" 
+  [ngClass]="getNotificationClass()" 
+  (click)="markAsRead()">
+  <div class="notification-icon">
+    <i class="fa" [ngClass]="getIcon()"></i>
+  </div>
+  <div class="notification-content">
+    <div class="notification-message">{{notification.message}}</div>
+    <div class="notification-meta">
+      <span class="notification-time">{{notification.createdAt | date:'short'}}</span>
+      <span *ngIf="notification.ticketId" class="notification-ticket">
+        Ticket #{{notification.ticketId}}
+      </span>
+    </div>
+  </div>
+</div>

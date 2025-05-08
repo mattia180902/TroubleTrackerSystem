@@ -1,38 +1,50 @@
 package com.ticketing.api.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import javax.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ticket_history")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class TicketHistory extends Auditable {
-
+public class TicketHistory {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ticket_id", nullable = false)
-    private Ticket ticket;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-    @Column(name = "action", nullable = false)
+    
+    @Column(nullable = false)
     private String action;
-
-    @Column(name = "field_name")
-    private String fieldName;
-
-    @Column(name = "old_value", columnDefinition = "TEXT")
+    
+    @Column(columnDefinition = "TEXT")
     private String oldValue;
-
-    @Column(name = "new_value", columnDefinition = "TEXT")
+    
+    @Column(columnDefinition = "TEXT")
     private String newValue;
+    
+    @Column(nullable = false)
+    private String field;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id", nullable = false)
+    @JsonBackReference
+    private Ticket ticket;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @JsonBackReference
+    private User user;
+    
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 }

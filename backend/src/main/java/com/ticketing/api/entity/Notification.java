@@ -1,44 +1,47 @@
 package com.ticketing.api.entity;
 
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import javax.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "notifications")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Notification extends Auditable {
-
+public class Notification {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @NotBlank
-    @Size(max = 500)
-    @Column(name = "message", nullable = false)
+    
+    @Column(nullable = false)
     private String message;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
-    private NotificationType type = NotificationType.INFO;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-    @Column(name = "read", nullable = false)
+    
+    @Column(nullable = false)
+    private String type;
+    
+    @Column(nullable = false)
     private boolean read = false;
-
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @JsonBackReference
+    private User user;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_id")
+    @JsonBackReference
     private Ticket ticket;
-
-    public enum NotificationType {
-        INFO, WARNING, SUCCESS, ERROR
-    }
+    
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 }

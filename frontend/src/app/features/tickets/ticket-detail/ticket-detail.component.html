@@ -1,0 +1,120 @@
+<div class="ticket-detail-container">
+  <div class="ticket-header">
+    <button class="back-button" (click)="goBack()">
+      <i class="fa fa-arrow-left"></i> Back to Tickets
+    </button>
+    <h1 *ngIf="ticket">Ticket #{{ticket.id}}</h1>
+  </div>
+
+  <div class="loading-container" *ngIf="loading">
+    <app-loading-spinner></app-loading-spinner>
+  </div>
+
+  <div class="error-container" *ngIf="error">
+    <div class="error-message">
+      <i class="fa fa-exclamation-circle"></i> {{error}}
+    </div>
+    <button class="retry-button" (click)="loadTicketData()">Retry</button>
+  </div>
+
+  <div class="ticket-content" *ngIf="ticket && !loading && !error">
+    <div class="ticket-content-header">
+      <div class="ticket-info">
+        <h2 class="ticket-subject">{{ticket.subject}}</h2>
+        <div class="ticket-badges">
+          <span class="status-badge" [ngClass]="getStatusClass(ticket.status)">
+            {{ticket.status}}
+          </span>
+          <span class="priority-badge" [ngClass]="getPriorityClass(ticket.priority)">
+            {{ticket.priority}}
+          </span>
+          <span class="category-badge" *ngIf="ticket.category">
+            {{ticket.category.name}}
+          </span>
+        </div>
+      </div>
+      <button class="edit-button" *ngIf="canEditTicket()" (click)="editTicket()">
+        <i class="fa fa-edit"></i> Edit Ticket
+      </button>
+    </div>
+
+    <div class="ticket-meta">
+      <div class="meta-item">
+        <span class="meta-label">Created by</span>
+        <span class="meta-value">{{ticket.createdBy?.firstName}} {{ticket.createdBy?.lastName}}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Assigned to</span>
+        <span class="meta-value">{{ticket.assignedTo ? (ticket.assignedTo.firstName + ' ' + ticket.assignedTo.lastName) : 'Unassigned'}}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Created on</span>
+        <span class="meta-value">{{formatDate(ticket.createdAt)}}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Last updated</span>
+        <span class="meta-value">{{formatDate(ticket.updatedAt)}}</span>
+      </div>
+    </div>
+
+    <div class="ticket-description">
+      <h3>Description</h3>
+      <div class="description-content">
+        <p>{{ticket.description}}</p>
+      </div>
+    </div>
+
+    <div class="ticket-comments">
+      <h3>Comments ({{comments.length}})</h3>
+      
+      <div class="comments-list">
+        <div class="comment-item" *ngFor="let comment of comments">
+          <div class="comment-header">
+            <div class="comment-author">
+              <div class="author-avatar">
+                <img *ngIf="comment.user?.avatarUrl" [src]="comment.user.avatarUrl" alt="User avatar">
+                <div *ngIf="!comment.user?.avatarUrl" class="avatar-placeholder">
+                  {{comment.user?.firstName?.charAt(0)}}{{comment.user?.lastName?.charAt(0)}}
+                </div>
+              </div>
+              <div class="author-info">
+                <span class="author-name">{{comment.user?.firstName}} {{comment.user?.lastName}}</span>
+                <span class="comment-date">{{formatDate(comment.createdAt)}}</span>
+              </div>
+            </div>
+          </div>
+          <div class="comment-content">
+            <p>{{comment.content}}</p>
+          </div>
+        </div>
+        
+        <div class="no-comments" *ngIf="comments.length === 0">
+          <p>No comments yet.</p>
+        </div>
+      </div>
+      
+      <div class="add-comment-section">
+        <h4>Add a Comment</h4>
+        <form [formGroup]="commentForm" (ngSubmit)="submitComment()">
+          <div class="form-field">
+            <textarea 
+              formControlName="content" 
+              placeholder="Write your comment here..."
+              rows="4">
+            </textarea>
+            <div class="error-message" *ngIf="commentForm.get('content')?.invalid && commentForm.get('content')?.touched">
+              Comment is required and must be at least 2 characters.
+            </div>
+          </div>
+          <button 
+            type="submit" 
+            class="submit-button" 
+            [disabled]="commentForm.invalid || submittingComment">
+            <i class="fa fa-paper-plane"></i> 
+            {{submittingComment ? 'Submitting...' : 'Submit Comment'}}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

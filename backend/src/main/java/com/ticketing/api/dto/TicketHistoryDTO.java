@@ -1,6 +1,5 @@
 package com.ticketing.api.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,15 +11,19 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TicketHistoryDTO {
+    
     private Long id;
-    private Long ticketId;
-    private Long userId;
-    private UserDTO user;
     private String action;
-    private String fieldName;
     private String oldValue;
     private String newValue;
+    private String field;
+    
+    private Long ticketId;
+    private Long userId;
+    
+    private String userName;
+    private String userAvatar;
+    
     private LocalDateTime createdAt;
 }

@@ -1,0 +1,92 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Dashboard</h1>
+    <button class="refresh-button" (click)="refresh()">
+      <i class="fa fa-sync"></i> Refresh
+    </button>
+  </div>
+
+  <div class="loading-container" *ngIf="loading">
+    <app-loading-spinner></app-loading-spinner>
+  </div>
+
+  <div class="error-container" *ngIf="error">
+    <div class="error-message">
+      <i class="fa fa-exclamation-circle"></i> {{error}}
+    </div>
+    <button class="retry-button" (click)="refresh()">Retry</button>
+  </div>
+
+  <div class="dashboard-content" *ngIf="stats && !loading && !error">
+    <div class="stats-summary">
+      <div class="stats-card total">
+        <div class="stats-value">{{stats.total}}</div>
+        <div class="stats-label">Total Tickets</div>
+      </div>
+      
+      <div class="stats-card open">
+        <div class="stats-value">{{stats.openTickets}}</div>
+        <div class="stats-label">Open</div>
+      </div>
+      
+      <div class="stats-card in-progress">
+        <div class="stats-value">{{stats.inProgressTickets}}</div>
+        <div class="stats-label">In Progress</div>
+      </div>
+      
+      <div class="stats-card resolved">
+        <div class="stats-value">{{stats.resolvedTickets}}</div>
+        <div class="stats-label">Resolved</div>
+      </div>
+      
+      <div class="stats-card closed">
+        <div class="stats-value">{{stats.closedTickets}}</div>
+        <div class="stats-label">Closed</div>
+      </div>
+    </div>
+    
+    <div class="charts-container">
+      <div class="chart-card">
+        <h3 class="chart-title">Tickets by Status</h3>
+        <div class="chart-content">
+          <!-- Status chart will be rendered here with proper charting library -->
+          <div class="chart-placeholder">
+            <div *ngFor="let item of statusChartData" class="chart-bar-item">
+              <div class="chart-bar-label">{{item.name}}</div>
+              <div class="chart-bar-container">
+                <div class="chart-bar" [style.width.%]="item.value / stats.total * 100"></div>
+                <span class="chart-bar-value">{{item.value}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="chart-card">
+        <h3 class="chart-title">Tickets by Priority</h3>
+        <div class="chart-content">
+          <!-- Priority chart will be rendered here with proper charting library -->
+          <div class="chart-placeholder">
+            <div *ngFor="let item of priorityChartData" class="chart-bar-item">
+              <div class="chart-bar-label">{{item.name}}</div>
+              <div class="chart-bar-container">
+                <div class="chart-bar" 
+                     [ngClass]="{'high': item.name === 'High', 'medium': item.name === 'Medium', 'low': item.name === 'Low'}"
+                     [style.width.%]="item.value / stats.total * 100"></div>
+                <span class="chart-bar-value">{{item.value}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="additional-stats">
+      <div class="stats-detail-card">
+        <h3>Response Time</h3>
+        <div class="detail-value">{{stats.avgResponseTime}}</div>
+        <div class="detail-label">Average Response Time</div>
+      </div>
+    </div>
+  </div>
+</div>

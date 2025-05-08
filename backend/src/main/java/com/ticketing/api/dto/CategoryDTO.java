@@ -1,30 +1,28 @@
 package com.ticketing.api.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import java.time.LocalDateTime;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class CategoryDTO {
+    
     private Long id;
     
     @NotBlank(message = "Category name is required")
-    @Size(min = 3, max = 100, message = "Category name must be between 3 and 100 characters")
+    @Size(min = 2, max = 50, message = "Category name must be between 2 and 50 characters")
     private String name;
     
-    @Size(max = 500, message = "Description cannot exceed 500 characters")
+    @Size(max = 255, message = "Description cannot be longer than 255 characters")
     private String description;
     
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    // Stats for showing in UI
+    private Integer ticketCount;
 }

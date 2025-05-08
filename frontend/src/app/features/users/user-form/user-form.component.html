@@ -1,0 +1,141 @@
+<div class="user-form-container">
+  <div class="form-header">
+    <h1>{{ isEditMode ? 'Edit User' : 'Create New User' }}</h1>
+    <button class="cancel-button" (click)="cancel()">
+      <i class="fa fa-times"></i> Cancel
+    </button>
+  </div>
+
+  <div class="loading-container" *ngIf="loading">
+    <app-loading-spinner></app-loading-spinner>
+  </div>
+
+  <div class="error-container" *ngIf="error">
+    <div class="error-message">
+      <i class="fa fa-exclamation-circle"></i> {{error}}
+    </div>
+    <button class="retry-button" (click)="isEditMode ? loadUser() : null">Retry</button>
+  </div>
+
+  <form [formGroup]="userForm" (ngSubmit)="onSubmit()" *ngIf="!loading && !error">
+    <div class="form-section">
+      <h2 class="section-title">Basic Information</h2>
+      
+      <div class="form-row">
+        <div class="form-field half-width">
+          <label for="firstName">First Name <span class="required">*</span></label>
+          <input 
+            type="text" 
+            id="firstName" 
+            formControlName="firstName" 
+            placeholder="Enter first name">
+          <div class="error-message" *ngIf="firstNameControl?.invalid && firstNameControl?.touched">
+            <span *ngIf="firstNameControl?.errors?.['required']">First name is required.</span>
+            <span *ngIf="firstNameControl?.errors?.['maxlength']">First name cannot exceed 50 characters.</span>
+          </div>
+        </div>
+
+        <div class="form-field half-width">
+          <label for="lastName">Last Name <span class="required">*</span></label>
+          <input 
+            type="text" 
+            id="lastName" 
+            formControlName="lastName" 
+            placeholder="Enter last name">
+          <div class="error-message" *ngIf="lastNameControl?.invalid && lastNameControl?.touched">
+            <span *ngIf="lastNameControl?.errors?.['required']">Last name is required.</span>
+            <span *ngIf="lastNameControl?.errors?.['maxlength']">Last name cannot exceed 50 characters.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-field half-width">
+          <label for="email">Email <span class="required">*</span></label>
+          <input 
+            type="email" 
+            id="email" 
+            formControlName="email" 
+            placeholder="Enter email address">
+          <div class="error-message" *ngIf="emailControl?.invalid && emailControl?.touched">
+            <span *ngIf="emailControl?.errors?.['required']">Email is required.</span>
+            <span *ngIf="emailControl?.errors?.['email']">Please enter a valid email address.</span>
+            <span *ngIf="emailControl?.errors?.['maxlength']">Email cannot exceed 100 characters.</span>
+          </div>
+        </div>
+
+        <div class="form-field half-width">
+          <label for="department">Department</label>
+          <input 
+            type="text" 
+            id="department" 
+            formControlName="department" 
+            placeholder="Enter department (optional)">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h2 class="section-title">Account Information</h2>
+      
+      <div class="form-row">
+        <div class="form-field half-width">
+          <label for="username">Username <span class="required">*</span></label>
+          <input 
+            type="text" 
+            id="username" 
+            formControlName="username" 
+            placeholder="Enter username"
+            [readonly]="isEditMode">
+          <div class="error-message" *ngIf="usernameControl?.invalid && usernameControl?.touched">
+            <span *ngIf="usernameControl?.errors?.['required']">Username is required.</span>
+            <span *ngIf="usernameControl?.errors?.['minlength']">Username must be at least 4 characters.</span>
+            <span *ngIf="usernameControl?.errors?.['maxlength']">Username cannot exceed 50 characters.</span>
+          </div>
+        </div>
+
+        <div class="form-field half-width">
+          <label for="role">Role <span class="required">*</span></label>
+          <select id="role" formControlName="role">
+            <option *ngFor="let option of roleOptions" [value]="option.value">
+              {{option.label}}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="password">
+          Password <span class="required" *ngIf="!isEditMode">*</span>
+          <span class="hint-text" *ngIf="isEditMode">(Leave blank to keep current password)</span>
+        </label>
+        <input 
+          type="password" 
+          id="password" 
+          formControlName="password" 
+          placeholder="Enter password">
+        <div class="error-message" *ngIf="passwordControl?.invalid && passwordControl?.touched">
+          <span *ngIf="passwordControl?.errors?.['required']">Password is required.</span>
+          <span *ngIf="passwordControl?.errors?.['minlength']">Password must be at least 8 characters.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button 
+        type="submit" 
+        class="submit-button" 
+        [disabled]="userForm.invalid || submitting">
+        <i class="fa" [ngClass]="isEditMode ? 'fa-save' : 'fa-plus'"></i> 
+        {{ isEditMode ? (submitting ? 'Updating...' : 'Update User') : (submitting ? 'Creating...' : 'Create User') }}
+      </button>
+      
+      <button 
+        type="button" 
+        class="cancel-button-alt" 
+        (click)="cancel()">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>

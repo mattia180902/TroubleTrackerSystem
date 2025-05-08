@@ -1,0 +1,51 @@
+<header class="app-header">
+  <div class="header-content">
+    <div class="header-left">
+      <h1 class="app-title">Ticketing System</h1>
+    </div>
+    
+    <div class="header-right" *ngIf="currentUser">
+      <div class="notification-area">
+        <button class="notification-button" (click)="toggleNotifications()">
+          <i class="fa fa-bell"></i>
+          <span class="notification-badge" *ngIf="unreadNotifications > 0">{{unreadNotifications}}</span>
+        </button>
+        
+        <div class="notification-dropdown" *ngIf="showNotificationsDropdown">
+          <div class="notification-header">
+            <h3>Notifications</h3>
+            <button class="mark-read-button" (click)="markAllAsRead()">Mark all as read</button>
+          </div>
+          
+          <div class="notification-list">
+            <div class="notification-item" *ngFor="let notification of notifications" 
+                [ngClass]="{'unread': !notification.read}">
+              <div class="notification-content">
+                <p>{{notification.message}}</p>
+                <span class="notification-time">{{notification.createdAt | date:'short'}}</span>
+              </div>
+            </div>
+            
+            <div class="no-notifications" *ngIf="notifications.length === 0">
+              <p>No notifications</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="user-profile">
+        <div class="user-info">
+          <span class="user-name">{{currentUser.firstName}} {{currentUser.lastName}}</span>
+          <span class="user-role">{{currentUser.role}}</span>
+        </div>
+        <div class="user-avatar">
+          <img *ngIf="currentUser.avatarUrl" [src]="currentUser.avatarUrl" alt="User avatar">
+          <div *ngIf="!currentUser.avatarUrl" class="avatar-placeholder">
+            {{currentUser.firstName?.charAt(0)}}{{currentUser.lastName?.charAt(0)}}
+          </div>
+        </div>
+        <button class="logout-button" (click)="logout()">Logout</button>
+      </div>
+    </div>
+  </div>
+</header>

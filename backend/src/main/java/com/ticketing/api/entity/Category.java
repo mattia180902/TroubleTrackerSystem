@@ -1,35 +1,44 @@
 package com.ticketing.api.entity;
 
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-import java.util.HashSet;
-import java.util.Set;
+import javax.persistence.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "categories")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Category extends Auditable {
-
+public class Category {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @NotBlank
-    @Size(max = 100)
-    @Column(name = "name", nullable = false, unique = true)
+    
+    @Column(nullable = false, unique = true)
     private String name;
-
-    @Size(max = 500)
-    @Column(name = "description")
+    
+    @Column(columnDefinition = "TEXT")
     private String description;
-
+    
     @OneToMany(mappedBy = "category")
-    private Set<Ticket> tickets = new HashSet<>();
+    @JsonManagedReference
+    private List<Ticket> tickets = new ArrayList<>();
+    
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+    
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

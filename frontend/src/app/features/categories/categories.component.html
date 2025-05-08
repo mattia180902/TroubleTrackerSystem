@@ -1,0 +1,119 @@
+<div class="categories-container">
+  <div class="categories-header">
+    <h1>Categories Management</h1>
+  </div>
+
+  <div class="categories-content">
+    <div class="categories-form-section">
+      <div class="form-card">
+        <h2>{{ isEditMode ? 'Edit Category' : 'Create New Category' }}</h2>
+        
+        <form [formGroup]="categoryForm" (ngSubmit)="onSubmit()">
+          <div class="form-field">
+            <label for="name">Category Name <span class="required">*</span></label>
+            <input 
+              type="text" 
+              id="name" 
+              formControlName="name" 
+              placeholder="Enter category name">
+            <div class="error-message" *ngIf="nameControl?.invalid && nameControl?.touched">
+              <span *ngIf="nameControl?.errors?.['required']">Category name is required.</span>
+              <span *ngIf="nameControl?.errors?.['minlength']">Category name must be at least 2 characters.</span>
+              <span *ngIf="nameControl?.errors?.['maxlength']">Category name cannot exceed 50 characters.</span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="description">Description</label>
+            <textarea 
+              id="description" 
+              formControlName="description" 
+              rows="4" 
+              placeholder="Enter category description (optional)"></textarea>
+            <div class="error-message" *ngIf="descriptionControl?.invalid && descriptionControl?.touched">
+              <span *ngIf="descriptionControl?.errors?.['maxlength']">Description cannot exceed 200 characters.</span>
+            </div>
+          </div>
+
+          <div class="form-error" *ngIf="formError">
+            <i class="fa fa-exclamation-circle"></i> {{formError}}
+          </div>
+
+          <div class="form-actions">
+            <button 
+              type="submit" 
+              class="submit-button" 
+              [disabled]="categoryForm.invalid || submitting">
+              <i class="fa" [ngClass]="isEditMode ? 'fa-save' : 'fa-plus'"></i> 
+              {{ isEditMode ? (submitting ? 'Updating...' : 'Update Category') : (submitting ? 'Creating...' : 'Create Category') }}
+            </button>
+            
+            <button 
+              *ngIf="isEditMode"
+              type="button" 
+              class="cancel-button" 
+              (click)="cancelEdit()">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="categories-list-section">
+      <div class="list-card">
+        <h2>Categories List</h2>
+        
+        <div class="loading-container" *ngIf="loading">
+          <app-loading-spinner></app-loading-spinner>
+        </div>
+
+        <div class="error-container" *ngIf="error">
+          <div class="error-message">
+            <i class="fa fa-exclamation-circle"></i> {{error}}
+          </div>
+          <button class="retry-button" (click)="loadCategories()">Retry</button>
+        </div>
+
+        <div class="categories-list" *ngIf="!loading && !error">
+          <div class="category-item" *ngFor="let category of categories">
+            <div class="category-info">
+              <h3 class="category-name">{{category.name}}</h3>
+              <p class="category-description" *ngIf="category.description">{{category.description}}</p>
+              <p class="no-description" *ngIf="!category.description">No description</p>
+            </div>
+            <div class="category-actions">
+              <button class="action-button edit" (click)="editCategory(category)" title="Edit">
+                <i class="fa fa-edit"></i>
+              </button>
+              <button class="action-button delete" (click)="confirmDelete(category)" title="Delete">
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="no-categories" *ngIf="categories.length === 0">
+            <p>No categories found. Create your first category using the form.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div class="dialog-overlay" *ngIf="showConfirmDialog">
+    <div class="confirm-dialog">
+      <div class="dialog-header">
+        <h3>Confirm Deletion</h3>
+      </div>
+      <div class="dialog-content">
+        <p>Are you sure you want to delete the category <strong>{{categoryToDelete?.name}}</strong>?</p>
+        <p class="warning-text">Tickets associated with this category will become uncategorized!</p>
+      </div>
+      <div class="dialog-actions">
+        <button class="cancel-button" (click)="cancelDelete()">Cancel</button>
+        <button class="delete-button" (click)="deleteCategory()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>

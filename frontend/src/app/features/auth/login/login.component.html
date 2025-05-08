@@ -1,0 +1,25 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>Trouble Ticketing System</h1>
+      <p>Sign in to access your account</p>
+    </div>
+    
+    <div class="error-message" *ngIf="error">
+      <i class="fa fa-exclamation-circle"></i> {{error}}
+    </div>
+    
+    <button 
+      class="login-button" 
+      (click)="login()" 
+      [disabled]="loading">
+      <i class="fa" [ngClass]="loading ? 'fa-spinner fa-spin' : 'fa-sign-in'"></i>
+      {{loading ? 'Signing in...' : 'Sign in with SSO'}}
+    </button>
+    
+    <div class="info-text">
+      <p>This application uses Keycloak for secure authentication.</p>
+      <p>If you don't have an account, please contact your administrator.</p>
+    </div>
+  </div>
+</div>

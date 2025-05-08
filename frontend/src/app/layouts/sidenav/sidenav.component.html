@@ -1,0 +1,12 @@
+<nav class="sidenav">
+  <div class="sidenav-content">
+    <ul class="nav-list">
+      <li *ngFor="let item of filteredNavItems" class="nav-item" [class.active]="isActive(item.route)">
+        <a [routerLink]="item.route" class="nav-link">
+          <i class="fa" [ngClass]="item.icon"></i>
+          <span class="nav-text">{{item.name}}</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>

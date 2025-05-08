@@ -1,0 +1,195 @@
+<div class="reports-container">
+  <div class="reports-header">
+    <h1>Reports & Analytics</h1>
+    <div class="header-actions">
+      <button class="export-button" (click)="exportReport()">
+        <i class="fa fa-download"></i> Export Report
+      </button>
+    </div>
+  </div>
+
+  <div class="filter-section">
+    <div class="filter-header">
+      <h2>Report Filters</h2>
+      <button class="reset-button" (click)="resetFilters()">
+        <i class="fa fa-refresh"></i> Reset Filters
+      </button>
+    </div>
+    
+    <form [formGroup]="filterForm" (ngSubmit)="generateReport()">
+      <div class="filter-grid">
+        <div class="filter-field">
+          <label for="startDate">Start Date</label>
+          <input type="date" id="startDate" formControlName="startDate">
+        </div>
+        
+        <div class="filter-field">
+          <label for="endDate">End Date</label>
+          <input type="date" id="endDate" formControlName="endDate">
+        </div>
+        
+        <div class="filter-field">
+          <label for="categoryId">Category</label>
+          <select id="categoryId" formControlName="categoryId">
+            <option [ngValue]="null">All Categories</option>
+            <option *ngFor="let category of categories" [ngValue]="category.id">
+              {{category.name}}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-field">
+          <label for="assignedToId">Assigned To</label>
+          <select id="assignedToId" formControlName="assignedToId">
+            <option [ngValue]="null">All Agents</option>
+            <option *ngFor="let user of users" 
+                   [ngValue]="user.id" 
+                   [hidden]="user.role === 'USER'">
+              {{user.firstName}} {{user.lastName}}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-field">
+          <label for="createdById">Created By</label>
+          <select id="createdById" formControlName="createdById">
+            <option [ngValue]="null">All Users</option>
+            <option *ngFor="let user of users" [ngValue]="user.id">
+              {{user.firstName}} {{user.lastName}}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-actions">
+          <button type="submit" class="generate-button" [disabled]="loading">
+            <i class="fa" [ngClass]="loading ? 'fa-spinner fa-spin' : 'fa-bar-chart'"></i> 
+            {{loading ? 'Generating...' : 'Generate Report'}}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  
+  <div class="error-container" *ngIf="error">
+    <div class="error-message">
+      <i class="fa fa-exclamation-circle"></i> {{error}}
+    </div>
+    <button class="retry-button" (click)="generateReport()">Retry</button>
+  </div>
+  
+  <div class="reports-content" *ngIf="!error">
+    <div class="summary-section">
+      <div class="summary-card">
+        <h3>Report Summary</h3>
+        <div class="summary-info">
+          <div class="summary-item">
+            <span class="summary-label">Total Tickets</span>
+            <span class="summary-value">{{tickets.length}}</span>
+          </div>
+          
+          <div class="summary-item">
+            <span class="summary-label">Date Range</span>
+            <span class="summary-value">
+              {{filterForm.get('startDate')?.value | date}} - {{filterForm.get('endDate')?.value | date}}
+            </span>
+          </div>
+          
+          <div class="summary-item" *ngIf="stats">
+            <span class="summary-label">Avg. Response Time</span>
+            <span class="summary-value">{{stats.avgResponseTime}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="charts-section">
+      <div class="chart-card">
+        <h3>Tickets by Status</h3>
+        <div class="chart-content">
+          <!-- Status chart - visualized with simple bars for this example -->
+          <div class="chart-bar-container">
+            <div *ngFor="let item of statusChartData" class="chart-bar-item">
+              <div class="chart-bar-label">{{item.name}}</div>
+              <div class="chart-bar-wrapper">
+                <div class="chart-bar" 
+                     [ngClass]="getStatusClass(item.name.toUpperCase())"
+                     [style.width.%]="tickets.length > 0 ? (item.value / tickets.length * 100) : 0">
+                </div>
+                <span class="chart-bar-value">{{item.value}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="chart-card">
+        <h3>Tickets by Priority</h3>
+        <div class="chart-content">
+          <!-- Priority chart - visualized with simple bars for this example -->
+          <div class="chart-bar-container">
+            <div *ngFor="let item of priorityChartData" class="chart-bar-item">
+              <div class="chart-bar-label">{{item.name}}</div>
+              <div class="chart-bar-wrapper">
+                <div class="chart-bar" 
+                     [ngClass]="getPriorityClass(item.name.toUpperCase())"
+                     [style.width.%]="tickets.length > 0 ? (item.value / tickets.length * 100) : 0">
+                </div>
+                <span class="chart-bar-value">{{item.value}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="chart-card" *ngIf="categoryChartData.length > 0">
+      <h3>Tickets by Category</h3>
+      <div class="chart-content">
+        <!-- Category chart - visualized with simple bars for this example -->
+        <div class="chart-bar-container">
+          <div *ngFor="let item of categoryChartData" class="chart-bar-item">
+            <div class="chart-bar-label">{{item.name}}</div>
+            <div class="chart-bar-wrapper">
+              <div class="chart-bar category-bar" 
+                   [style.width.%]="tickets.length > 0 ? (item.value / tickets.length * 100) : 0">
+              </div>
+              <span class="chart-bar-value">{{item.value}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="agent-performance-section" *ngIf="agentPerformanceData.length > 0">
+      <div class="performance-card">
+        <h3>Agent Performance</h3>
+        <div class="performance-table-container">
+          <table class="performance-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Total Tickets</th>
+                <th>Resolved Tickets</th>
+                <th>Resolution Rate</th>
+                <th>Avg. Resolution Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let agent of agentPerformanceData">
+                <td>{{agent.name}}</td>
+                <td>{{agent.totalTickets}}</td>
+                <td>{{agent.resolvedCount}}</td>
+                <td>
+                  <span class="resolution-rate">
+                    {{agent.totalTickets > 0 ? (agent.resolvedCount / agent.totalTickets * 100).toFixed(0) : 0}}%
+                  </span>
+                </td>
+                <td>{{agent.averageResolutionTime.toFixed(1)}} hours</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
