@@ -1,22 +1,19 @@
 package com.ticketing.api.entity;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.Setter;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "categories")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Category {
@@ -25,20 +22,27 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 100)
     private String name;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 500)
     private String description;
     
-    @OneToMany(mappedBy = "category")
-    @JsonManagedReference
-    private List<Ticket> tickets = new ArrayList<>();
+    // Relations
     
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
+    @JsonBackReference
+    private Set<Ticket> tickets = new HashSet<>();
     
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    // Helper methods for bidirectional relationships
+    
+    public void addTicket(Ticket ticket) {
+        tickets.add(ticket);
+        ticket.setCategory(this);
+    }
+    
+    public void removeTicket(Ticket ticket) {
+        tickets.remove(ticket);
+        ticket.setCategory(null);
+    }
 }

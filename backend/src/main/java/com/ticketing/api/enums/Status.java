@@ -1,8 +1,18 @@
 package com.ticketing.api.enums;
 
 public enum Status {
-    OPEN,
-    IN_PROGRESS,
-    RESOLVED,
-    CLOSED
+    OPEN("Open"),
+    IN_PROGRESS("In Progress"),
+    RESOLVED("Resolved"),
+    CLOSED("Closed");
+    
+    private final String displayName;
+    
+    Status(String displayName) {
+        this.displayName = displayName;
+    }
+    
+    public String getDisplayName() {
+        return displayName;
+    }
 }

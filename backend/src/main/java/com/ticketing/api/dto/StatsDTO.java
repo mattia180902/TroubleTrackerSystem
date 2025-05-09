@@ -1,10 +1,12 @@
 package com.ticketing.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -12,38 +14,53 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class StatsDTO {
     
-    // Basic stats
+    // General stats
     private Long totalTickets;
     private Long openTickets;
     private Long inProgressTickets;
     private Long resolvedTickets;
     private Long closedTickets;
     
+    // Priority stats
     private Long highPriorityCount;
     private Long mediumPriorityCount;
     private Long lowPriorityCount;
     
-    private Double averageResolutionTimeInHours;
-    private Double averageResponseTimeInHours;
+    // Time stats
+    private Duration avgResponseTime;
+    private Duration avgResolutionTime;
     
-    // List of recent activity
-    private List<TicketHistoryDTO> recentActivity;
+    // Category stats
+    private List<CategoryStatsDTO> categoriesStats;
     
-    // Ticket counts by various dimensions
-    private Map<String, Long> ticketsByCategory;
-    private Map<String, Long> ticketsByUser;
-    private Map<String, Long> ticketsByMonth;
-    private Map<String, Long> ticketsByStatus;
-    private Map<String, Long> ticketsByPriority;
+    // Agent stats
+    private List<AgentStatsDTO> agentStats;
     
-    // For user-specific stats
-    private Long assignedToMeCount;
-    private Long createdByMeCount;
-    private Long resolvedByMeCount;
+    // Time-based stats (for charts)
+    private Map<String, Long> ticketsCreatedByMonth;
+    private Map<String, Long> ticketsResolvedByMonth;
     
-    // For time-based stats
-    private Map<String, Long> createdTicketsByDay;
-    private Map<String, Long> resolvedTicketsByDay;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CategoryStatsDTO {
+        private Long categoryId;
+        private String categoryName;
+        private Long ticketCount;
+        private Double percentageOfTotal;
+    }
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AgentStatsDTO {
+        private Long userId;
+        private String userName;
+        private Long assignedTickets;
+        private Long resolvedTickets;
+        private Duration avgResolutionTime;
+    }
 }

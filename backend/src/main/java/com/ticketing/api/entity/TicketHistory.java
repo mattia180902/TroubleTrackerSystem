@@ -1,19 +1,18 @@
 package com.ticketing.api.entity;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.Setter;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ticket_history")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class TicketHistory {
@@ -23,28 +22,26 @@ public class TicketHistory {
     private Long id;
     
     @Column(nullable = false)
-    private String action;
+    private String field;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "old_value")
     private String oldValue;
     
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "new_value")
     private String newValue;
     
-    @Column(nullable = false)
-    private String field;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    // Relationships
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_id", nullable = false)
-    @JsonBackReference
+    @JsonManagedReference
     private Ticket ticket;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonBackReference
+    @JsonManagedReference
     private User user;
-    
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
 }

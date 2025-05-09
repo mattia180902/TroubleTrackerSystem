@@ -1,5 +1,6 @@
 package com.ticketing.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,22 +15,29 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class CommentDTO {
     
     private Long id;
     
     @NotBlank(message = "Comment content is required")
-    @Size(min = 2, message = "Comment must be at least 2 characters")
+    @Size(min = 1, max = 2000, message = "Comment must be between 1 and 2000 characters")
     private String content;
     
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    
+    private boolean internal;
+    
+    // Relationships
     @NotNull(message = "Ticket ID is required")
     private Long ticketId;
     
     @NotNull(message = "User ID is required")
     private Long userId;
     
+    // Denormalized fields for display
     private String userName;
-    private String userAvatar;
-    
-    private LocalDateTime createdAt;
+    private String userRole;
+    private String userAvatarUrl;
 }

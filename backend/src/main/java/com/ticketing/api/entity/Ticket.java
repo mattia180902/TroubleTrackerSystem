@@ -5,21 +5,19 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.ticketing.api.enums.Priority;
 import com.ticketing.api.enums.Status;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.Setter;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "tickets")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Ticket {
@@ -28,57 +26,149 @@ public class Ticket {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
+    @Column(nullable = false, length = 200)
     private String subject;
     
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, length = 4000)
     private String description;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status;
+    private Status status = Status.OPEN;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Priority priority;
     
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+    
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+    
+    @Column(name = "closed_at")
+    private LocalDateTime closedAt;
+    
+    @Column(name = "due_date")
+    private LocalDateTime dueDate;
+    
+    // Relationships
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
-    @JsonBackReference
+    @JsonManagedReference
     private Category category;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id", nullable = false)
-    @JsonBackReference
+    @JsonManagedReference
     private User createdBy;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_to_id")
-    @JsonBackReference
+    @JsonManagedReference
     private User assignedTo;
     
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<Comment> comments = new ArrayList<>();
+    @JsonBackReference
+    private Set<Comment> comments = new HashSet<>();
     
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<TicketHistory> history = new ArrayList<>();
+    @JsonBackReference
+    private Set<TicketHistory> histories = new HashSet<>();
     
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private List<Notification> notifications = new ArrayList<>();
+    @JsonBackReference
+    private Set<Attachment> attachments = new HashSet<>();
     
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    // Helper methods for bidirectional relationships
     
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    public void addComment(Comment comment) {
+        comments.add(comment);
+        comment.setTicket(this);
+    }
     
-    private LocalDateTime dueDate;
+    public void removeComment(Comment comment) {
+        comments.remove(comment);
+        comment.setTicket(null);
+    }
     
-    private LocalDateTime resolvedAt;
+    public void addHistory(TicketHistory history) {
+        histories.add(history);
+        history.setTicket(this);
+    }
     
-    private String resolution;
+    public void removeHistory(TicketHistory history) {
+        histories.remove(history);
+        history.setTicket(null);
+    }
+    
+    public void addAttachment(Attachment attachment) {
+        attachments.add(attachment);
+        attachment.setTicket(this);
+    }
+    
+    public void removeAttachment(Attachment attachment) {
+        attachments.remove(attachment);
+        attachment.setTicket(null);
+    }
+    
+    // Business methods
+    
+    public boolean isOpen() {
+        return status == Status.OPEN;
+    }
+    
+    public boolean isInProgress() {
+        return status == Status.IN_PROGRESS;
+    }
+    
+    public boolean isResolved() {
+        return status == Status.RESOLVED;
+    }
+    
+    public boolean isClosed() {
+        return status == Status.CLOSED;
+    }
+    
+    public void markInProgress(User agent) {
+        if (this.status == Status.OPEN) {
+            this.status = Status.IN_PROGRESS;
+            this.assignedTo = agent;
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+    
+    public void resolve() {
+        if (this.status == Status.IN_PROGRESS) {
+            this.status = Status.RESOLVED;
+            this.resolvedAt = LocalDateTime.now();
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+    
+    public void close() {
+        if (this.status == Status.RESOLVED) {
+            this.status = Status.CLOSED;
+            this.closedAt = LocalDateTime.now();
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+    
+    public void reopen() {
+        if (this.status == Status.RESOLVED || this.status == Status.CLOSED) {
+            this.status = Status.OPEN;
+            this.resolvedAt = null;
+            this.closedAt = null;
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+    
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

@@ -1,0 +1,182 @@
+{
+  "id": "ticketing",
+  "realm": "ticketing",
+  "enabled": true,
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrator role"
+      },
+      {
+        "name": "agent",
+        "description": "Support agent role"
+      },
+      {
+        "name": "user",
+        "description": "Regular user role"
+      }
+    ],
+    "client": {
+      "ticketing-app": [
+        {
+          "name": "view-tickets",
+          "description": "Permission to view tickets"
+        },
+        {
+          "name": "create-tickets",
+          "description": "Permission to create tickets"
+        },
+        {
+          "name": "manage-tickets",
+          "description": "Permission to manage all tickets"
+        },
+        {
+          "name": "view-users",
+          "description": "Permission to view users"
+        },
+        {
+          "name": "manage-users",
+          "description": "Permission to manage users"
+        },
+        {
+          "name": "view-reports",
+          "description": "Permission to view reports"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "ticketing-app",
+      "enabled": true,
+      "fullScopeAllowed": true,
+      "bearerOnly": false,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "webOrigins": [
+        "*"
+      ],
+      "redirectUris": [
+        "*"
+      ],
+      "rootUrl": "http://localhost:4200",
+      "baseUrl": "http://localhost:4200"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@example.com",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "clientRoles": {
+        "ticketing-app": [
+          "view-tickets",
+          "create-tickets",
+          "manage-tickets",
+          "view-users",
+          "manage-users",
+          "view-reports"
+        ]
+      },
+      "attributes": {
+        "department": [
+          "IT"
+        ]
+      }
+    },
+    {
+      "username": "agent",
+      "enabled": true,
+      "email": "agent@example.com",
+      "firstName": "Support",
+      "lastName": "Agent",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "agent"
+      ],
+      "clientRoles": {
+        "ticketing-app": [
+          "view-tickets",
+          "create-tickets",
+          "manage-tickets",
+          "view-users",
+          "view-reports"
+        ]
+      },
+      "attributes": {
+        "department": [
+          "Support"
+        ]
+      }
+    },
+    {
+      "username": "user",
+      "enabled": true,
+      "email": "user@example.com",
+      "firstName": "Regular",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user"
+      ],
+      "clientRoles": {
+        "ticketing-app": [
+          "view-tickets",
+          "create-tickets"
+        ]
+      },
+      "attributes": {
+        "department": [
+          "Marketing"
+        ]
+      }
+    }
+  ],
+  "defaultRoles": [
+    "user"
+  ]
+}

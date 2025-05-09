@@ -1,270 +1,170 @@
 package com.ticketing.api.service;
 
 import com.ticketing.api.dto.UserDTO;
-import com.ticketing.api.entity.Role;
 import com.ticketing.api.entity.User;
+import com.ticketing.api.enums.Role;
 import com.ticketing.api.exception.ResourceNotFoundException;
-import com.ticketing.api.mapper.UserMapper;
-import com.ticketing.api.repository.RoleRepository;
 import com.ticketing.api.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.UserResource;
-import org.keycloak.admin.client.resource.UsersResource;
-import org.keycloak.representations.idm.CredentialRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
-import org.keycloak.representations.idm.UserRepresentation;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.ws.rs.core.Response;
-
 @Service
-@RequiredArgsConstructor
 public class UserService {
-    
+
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final UserMapper userMapper;
-    private final Keycloak keycloak;
-    
-    @Value("${keycloak.realm}")
-    private String realm;
-    
+    private final PasswordEncoder passwordEncoder;
+
+    @Autowired
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
     public List<UserDTO> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(userMapper::toDTO)
+                .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
-    
+
+    public List<UserDTO> getUsersByRole(Role role) {
+        return userRepository.findByRole(role).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
     public UserDTO getUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
-        return userMapper.toDTO(user);
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+        
+        UserDTO dto = convertToDTO(user);
+        enrichWithStatistics(dto, user);
+        return dto;
     }
-    
-    public UserDTO getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
+
+    public UserDTO getUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
-        return userMapper.toDTO(user);
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+        
+        UserDTO dto = convertToDTO(user);
+        enrichWithStatistics(dto, user);
+        return dto;
     }
-    
+
     @Transactional
-    public UserDTO createUser(UserDTO userDTO, String password) {
-        // Check if username already exists
-        if (userRepository.existsByUsername(userDTO.getUsername())) {
-            throw new IllegalArgumentException("Username is already taken");
+    public UserDTO createUser(UserDTO userDTO) {
+        // Check if username or email already exists
+        if (userRepository.findByUsername(userDTO.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username already exists");
         }
         
-        // Check if email already exists
-        if (userRepository.existsByEmail(userDTO.getEmail())) {
-            throw new IllegalArgumentException("Email is already in use");
+        if (userRepository.findByEmail(userDTO.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already exists");
         }
         
-        // Create user in Keycloak
-        String keycloakId = createKeycloakUser(userDTO, password);
+        User user = convertToEntity(userDTO);
         
-        // Create user in our database
-        User user = new User();
-        user.setUsername(userDTO.getUsername());
-        user.setName(userDTO.getName());
-        user.setEmail(userDTO.getEmail());
-        user.setAvatarUrl(userDTO.getAvatarUrl());
-        user.setKeycloakId(keycloakId);
+        // Set a default role if not provided
+        if (user.getRole() == null) {
+            user.setRole(Role.USER);
+        }
+        
+        // Encrypt password if provided
+        if (userDTO.getPassword() != null && !userDTO.getPassword().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+        }
+        
         user.setActive(true);
-        
-        // Set roles
-        Set<Role> roles = new HashSet<>();
-        if (userDTO.getRoles() != null && !userDTO.getRoles().isEmpty()) {
-            userDTO.getRoles().forEach(roleName -> {
-                Role.ERole eRole;
-                switch (roleName) {
-                    case "ROLE_ADMIN":
-                        eRole = Role.ERole.ROLE_ADMIN;
-                        break;
-                    case "ROLE_AGENT":
-                        eRole = Role.ERole.ROLE_AGENT;
-                        break;
-                    default:
-                        eRole = Role.ERole.ROLE_USER;
-                }
-                
-                Role role = roleRepository.findByName(eRole)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                roles.add(role);
-            });
-        } else {
-            // Default role
-            Role userRole = roleRepository.findByName(Role.ERole.ROLE_USER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            roles.add(userRole);
-        }
-        
-        user.setRoles(roles);
-        
         User savedUser = userRepository.save(user);
-        return userMapper.toDTO(savedUser);
+        return convertToDTO(savedUser);
     }
-    
+
     @Transactional
     public UserDTO updateUser(Long id, UserDTO userDTO) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         
-        // Check if username already exists (for another user)
-        if (!user.getUsername().equals(userDTO.getUsername()) && 
-                userRepository.existsByUsername(userDTO.getUsername())) {
-            throw new IllegalArgumentException("Username is already taken");
+        // Check if username is being changed and if it already exists
+        if (!existingUser.getUsername().equals(userDTO.getUsername()) && 
+                userRepository.findByUsername(userDTO.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username already exists");
         }
         
-        // Check if email already exists (for another user)
-        if (!user.getEmail().equals(userDTO.getEmail()) && 
-                userRepository.existsByEmail(userDTO.getEmail())) {
-            throw new IllegalArgumentException("Email is already in use");
+        // Check if email is being changed and if it already exists
+        if (!existingUser.getEmail().equals(userDTO.getEmail()) && 
+                userRepository.findByEmail(userDTO.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already exists");
         }
         
-        // Update user in Keycloak
-        updateKeycloakUser(user.getKeycloakId(), userDTO);
+        // Update fields
+        existingUser.setUsername(userDTO.getUsername());
+        existingUser.setFirstName(userDTO.getFirstName());
+        existingUser.setLastName(userDTO.getLastName());
+        existingUser.setEmail(userDTO.getEmail());
+        existingUser.setRole(userDTO.getRole());
+        existingUser.setDepartment(userDTO.getDepartment());
+        existingUser.setAvatarUrl(userDTO.getAvatarUrl());
+        existingUser.setActive(userDTO.isActive());
         
-        // Update user in our database
-        user.setUsername(userDTO.getUsername());
-        user.setName(userDTO.getName());
-        user.setEmail(userDTO.getEmail());
-        user.setAvatarUrl(userDTO.getAvatarUrl());
-        user.setActive(userDTO.isActive());
-        
-        // Update roles if provided
-        if (userDTO.getRoles() != null && !userDTO.getRoles().isEmpty()) {
-            Set<Role> roles = new HashSet<>();
-            userDTO.getRoles().forEach(roleName -> {
-                Role.ERole eRole;
-                switch (roleName) {
-                    case "ROLE_ADMIN":
-                        eRole = Role.ERole.ROLE_ADMIN;
-                        break;
-                    case "ROLE_AGENT":
-                        eRole = Role.ERole.ROLE_AGENT;
-                        break;
-                    default:
-                        eRole = Role.ERole.ROLE_USER;
-                }
-                
-                Role role = roleRepository.findByName(eRole)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                roles.add(role);
-            });
-            
-            // Update Keycloak roles
-            updateKeycloakUserRoles(user.getKeycloakId(), userDTO.getRoles());
-            
-            user.setRoles(roles);
+        // Update password if provided
+        if (userDTO.getPassword() != null && !userDTO.getPassword().isEmpty()) {
+            existingUser.setPassword(passwordEncoder.encode(userDTO.getPassword()));
         }
         
-        User updatedUser = userRepository.save(user);
-        return userMapper.toDTO(updatedUser);
+        User updatedUser = userRepository.save(existingUser);
+        return convertToDTO(updatedUser);
     }
-    
+
     @Transactional
     public void deleteUser(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new ResourceNotFoundException("User not found with id: " + id);
+        }
+        userRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deactivateUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         
-        // Delete user from Keycloak
-        deleteKeycloakUser(user.getKeycloakId());
-        
-        // Delete user from our database
-        userRepository.delete(user);
+        user.setActive(false);
+        userRepository.save(user);
     }
-    
-    private String createKeycloakUser(UserDTO userDTO, String password) {
-        UsersResource usersResource = keycloak.realm(realm).users();
-        
-        // Create user representation
-        UserRepresentation userRepresentation = new UserRepresentation();
-        userRepresentation.setUsername(userDTO.getUsername());
-        userRepresentation.setEmail(userDTO.getEmail());
-        userRepresentation.setFirstName(userDTO.getName().split(" ")[0]);
-        userRepresentation.setLastName(userDTO.getName().contains(" ") 
-                ? userDTO.getName().substring(userDTO.getName().indexOf(" ") + 1) 
-                : "");
-        userRepresentation.setEnabled(true);
-        userRepresentation.setEmailVerified(true);
-        
-        // Create user
-        Response response = usersResource.create(userRepresentation);
-        
-        if (response.getStatus() != 201) {
-            throw new RuntimeException("Failed to create user in Keycloak. Status: " + response.getStatus());
-        }
-        
-        // Get user ID from response
-        String locationHeader = response.getHeaderString("Location");
-        String userId = locationHeader.substring(locationHeader.lastIndexOf("/") + 1);
-        
-        // Set password
-        UserResource userResource = usersResource.get(userId);
-        CredentialRepresentation credentialRepresentation = new CredentialRepresentation();
-        credentialRepresentation.setType(CredentialRepresentation.PASSWORD);
-        credentialRepresentation.setValue(password);
-        credentialRepresentation.setTemporary(false);
-        userResource.resetPassword(credentialRepresentation);
-        
-        // Set roles
-        if (userDTO.getRoles() != null && !userDTO.getRoles().isEmpty()) {
-            setKeycloakUserRoles(userResource, userDTO.getRoles());
-        } else {
-            // Default role
-            setKeycloakUserRoles(userResource, Collections.singleton("ROLE_USER"));
-        }
-        
-        return userId;
+
+    private UserDTO convertToDTO(User user) {
+        return UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .department(user.getDepartment())
+                .avatarUrl(user.getAvatarUrl())
+                .active(user.isActive())
+                .build();
     }
-    
-    private void updateKeycloakUser(String keycloakId, UserDTO userDTO) {
-        UserResource userResource = keycloak.realm(realm).users().get(keycloakId);
-        
-        UserRepresentation userRepresentation = userResource.toRepresentation();
-        userRepresentation.setUsername(userDTO.getUsername());
-        userRepresentation.setEmail(userDTO.getEmail());
-        userRepresentation.setFirstName(userDTO.getName().split(" ")[0]);
-        userRepresentation.setLastName(userDTO.getName().contains(" ") 
-                ? userDTO.getName().substring(userDTO.getName().indexOf(" ") + 1) 
-                : "");
-        userRepresentation.setEnabled(userDTO.isActive());
-        
-        userResource.update(userRepresentation);
+
+    private User convertToEntity(UserDTO dto) {
+        User user = new User();
+        user.setUsername(dto.getUsername());
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setEmail(dto.getEmail());
+        user.setRole(dto.getRole());
+        user.setDepartment(dto.getDepartment());
+        user.setAvatarUrl(dto.getAvatarUrl());
+        user.setActive(dto.isActive());
+        return user;
     }
-    
-    private void updateKeycloakUserRoles(String keycloakId, Set<String> roles) {
-        UserResource userResource = keycloak.realm(realm).users().get(keycloakId);
-        setKeycloakUserRoles(userResource, roles);
-    }
-    
-    private void setKeycloakUserRoles(UserResource userResource, Set<String> roles) {
-        // Get all available realm roles
-        List<RoleRepresentation> availableRoles = keycloak.realm(realm).roles().list();
-        
-        // Map role names to role representations
-        List<RoleRepresentation> rolesToAdd = availableRoles.stream()
-                .filter(role -> roles.contains(role.getName()))
-                .collect(Collectors.toList());
-        
-        // Assign roles to user
-        userResource.roles().realmLevel().add(rolesToAdd);
-    }
-    
-    private void deleteKeycloakUser(String keycloakId) {
-        keycloak.realm(realm).users().delete(keycloakId);
+
+    private void enrichWithStatistics(UserDTO dto, User user) {
+        dto.setAssignedTicketsCount(userRepository.countAssignedTickets(user.getId()).intValue());
+        dto.setCreatedTicketsCount(userRepository.countCreatedTickets(user.getId()).intValue());
     }
 }

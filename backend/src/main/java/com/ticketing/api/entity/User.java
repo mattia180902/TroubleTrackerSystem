@@ -1,23 +1,20 @@
 package com.ticketing.api.entity;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.ticketing.api.enums.Role;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.Setter;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -26,53 +23,91 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 50)
     private String username;
     
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String firstName;
     
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String lastName;
     
     @Column(nullable = false, unique = true)
     private String email;
     
+    @Column(nullable = false)
+    private String password;
+    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
     
+    @Column
     private String department;
     
+    @Column
     private String avatarUrl;
     
     @Column(nullable = false)
     private boolean active = true;
     
-    @OneToMany(mappedBy = "createdBy")
-    @JsonManagedReference
-    private List<Ticket> createdTickets = new ArrayList<>();
+    // Relations
     
-    @OneToMany(mappedBy = "assignedTo")
-    @JsonManagedReference
-    private List<Ticket> assignedTickets = new ArrayList<>();
+    @OneToMany(mappedBy = "createdBy", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonBackReference
+    private Set<Ticket> createdTickets = new HashSet<>();
     
-    @OneToMany(mappedBy = "user")
-    @JsonManagedReference
-    private List<Comment> comments = new ArrayList<>();
+    @OneToMany(mappedBy = "assignedTo", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonBackReference
+    private Set<Ticket> assignedTickets = new HashSet<>();
     
-    @OneToMany(mappedBy = "user")
-    @JsonManagedReference
-    private List<TicketHistory> ticketHistory = new ArrayList<>();
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonBackReference
+    private Set<Comment> comments = new HashSet<>();
     
-    @OneToMany(mappedBy = "user")
-    @JsonManagedReference
-    private List<Notification> notifications = new ArrayList<>();
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonBackReference
+    private Set<TicketHistory> ticketHistories = new HashSet<>();
     
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    // Helper methods for bidirectional relationships
     
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    public void addCreatedTicket(Ticket ticket) {
+        createdTickets.add(ticket);
+        ticket.setCreatedBy(this);
+    }
+    
+    public void removeCreatedTicket(Ticket ticket) {
+        createdTickets.remove(ticket);
+        ticket.setCreatedBy(null);
+    }
+    
+    public void addAssignedTicket(Ticket ticket) {
+        assignedTickets.add(ticket);
+        ticket.setAssignedTo(this);
+    }
+    
+    public void removeAssignedTicket(Ticket ticket) {
+        assignedTickets.remove(ticket);
+        ticket.setAssignedTo(null);
+    }
+    
+    public void addComment(Comment comment) {
+        comments.add(comment);
+        comment.setUser(this);
+    }
+    
+    public void removeComment(Comment comment) {
+        comments.remove(comment);
+        comment.setUser(null);
+    }
+    
+    public void addTicketHistory(TicketHistory history) {
+        ticketHistories.add(history);
+        history.setUser(this);
+    }
+    
+    public void removeTicketHistory(TicketHistory history) {
+        ticketHistories.remove(history);
+        history.setUser(null);
+    }
 }

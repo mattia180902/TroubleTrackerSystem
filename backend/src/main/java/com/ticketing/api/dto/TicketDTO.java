@@ -1,5 +1,6 @@
 package com.ticketing.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.ticketing.api.enums.Priority;
 import com.ticketing.api.enums.Status;
 import lombok.AllArgsConstructor;
@@ -17,16 +18,17 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TicketDTO {
     
     private Long id;
     
     @NotBlank(message = "Subject is required")
-    @Size(min = 5, max = 100, message = "Subject must be between 5 and 100 characters")
+    @Size(min = 5, max = 200, message = "Subject must be between 5 and 200 characters")
     private String subject;
     
     @NotBlank(message = "Description is required")
-    @Size(min = 10, message = "Description must be at least 10 characters")
+    @Size(min = 10, max = 4000, message = "Description must be between 10 and 4000 characters")
     private String description;
     
     @NotNull(message = "Status is required")
@@ -35,29 +37,28 @@ public class TicketDTO {
     @NotNull(message = "Priority is required")
     private Priority priority;
     
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime resolvedAt;
+    private LocalDateTime closedAt;
+    private LocalDateTime dueDate;
+    
+    // Relationships
     private Long categoryId;
     private String categoryName;
     
-    @NotNull(message = "Created by user is required")
     private Long createdById;
     private String createdByName;
     
     private Long assignedToId;
     private String assignedToName;
     
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime dueDate;
-    private LocalDateTime resolvedAt;
-    
-    private String resolution;
-    
-    // For detail view
+    // Related data, not mapped directly to entity
     private List<CommentDTO> comments;
-    private List<TicketHistoryDTO> history;
+    private List<TicketHistoryDTO> historyItems;
+    private List<AttachmentDTO> attachments;
     
-    // Stats
-    private Long commentsCount;
-    private Long timeToFirstResponse;
+    // Statistics
+    private Long responseTime;
     private Long resolutionTime;
 }

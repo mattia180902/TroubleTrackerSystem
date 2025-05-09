@@ -13,19 +13,21 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TicketHistoryDTO {
+public class AttachmentDTO {
     
     private Long id;
-    private String field;
-    private String oldValue;
-    private String newValue;
-    private LocalDateTime createdAt;
+    private String filename;
+    private String originalFilename;
+    private String contentType;
+    private Long fileSize;
+    private String filePath;
+    private String downloadUrl;
+    private LocalDateTime uploadedAt;
     
     // Relationships
     private Long ticketId;
-    private Long userId;
+    private Long uploadedById;
     
     // Denormalized fields for display
-    private String userName;
-    private String userRole;
+    private String uploadedByName;
 }

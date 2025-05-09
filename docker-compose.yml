@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # Database PostgreSQL
+  postgres:
+    image: postgres:14.1-alpine
+    container_name: ticketing-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ticketing
+      POSTGRES_PASSWORD: ticketing
+      POSTGRES_DB: ticketing
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ticketing-network
+
+  # Keycloak for authentication/authorization
+  keycloak:
+    image: quay.io/keycloak/keycloak:19.0.1
+    container_name: ticketing-keycloak
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres
+      DB_DATABASE: keycloak
+      DB_USER: ticketing
+      DB_PASSWORD: ticketing
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Import realms and users on startup
+      KEYCLOAK_IMPORT: /opt/keycloak/data/import/realm-export.json
+    command:
+      - start-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/data:/opt/keycloak/data
+    depends_on:
+      - postgres
+    networks:
+      - ticketing-network
+
+  # Spring Boot API server
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ticketing-api
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticketing
+      SPRING_DATASOURCE_USERNAME: ticketing
+      SPRING_DATASOURCE_PASSWORD: ticketing
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: ticketing
+      KEYCLOAK_RESOURCE: ticketing-app
+      KEYCLOAK_SSL_REQUIRED: external
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - ticketing-network
+
+  # Angular frontend server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ticketing-frontend
+    restart: always
+    ports:
+      - "4200:80"
+    depends_on:
+      - api
+    networks:
+      - ticketing-network
+
+networks:
+  ticketing-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
