@@ -8,16 +8,17 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 @Repository
 public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecificationExecutor<Ticket> {
     
-    // Basic filtering
+    // Basic queries
     List<Ticket> findByStatus(Status status);
     
     List<Ticket> findByPriority(Priority priority);
@@ -28,51 +29,82 @@ public interface TicketRepository extends JpaRepository<Ticket, Long>, JpaSpecif
     
     List<Ticket> findByAssignedToId(Long userId);
     
-    // Combined filtering
+    // Advanced queries with multiple conditions
     List<Ticket> findByStatusAndPriority(Status status, Priority priority);
     
-    List<Ticket> findByStatusInAndPriorityInAndCategoryIdAndCreatedById(
-            List<Status> statuses, 
-            List<Priority> priorities, 
-            Long categoryId, 
-            Long createdById);
+    List<Ticket> findByStatusInAndPriorityIn(List<Status> statuses, List<Priority> priorities);
     
-    // Pagination with filtering
-    Page<Ticket> findByStatus(Status status, Pageable pageable);
+    @Query("SELECT t FROM Ticket t WHERE " +
+           "(:status IS NULL OR t.status = :status) AND " +
+           "(:priority IS NULL OR t.priority = :priority) AND " +
+           "(:categoryId IS NULL OR t.category.id = :categoryId) AND " +
+           "(:createdById IS NULL OR t.createdBy.id = :createdById) AND " +
+           "(:assignedToId IS NULL OR t.assignedTo.id = :assignedToId)")
+    List<Ticket> findTicketsWithFilters(
+            @Param("status") Status status,
+            @Param("priority") Priority priority,
+            @Param("categoryId") Long categoryId,
+            @Param("createdById") Long createdById,
+            @Param("assignedToId") Long assignedToId);
     
-    Page<Ticket> findByCategoryId(Long categoryId, Pageable pageable);
+    // Paginated queries
+    @Query("SELECT t FROM Ticket t WHERE " +
+           "(:status IS NULL OR t.status = :status) AND " +
+           "(:priority IS NULL OR t.priority = :priority) AND " +
+           "(:categoryId IS NULL OR t.category.id = :categoryId) AND " +
+           "(:createdById IS NULL OR t.createdBy.id = :createdById) AND " +
+           "(:assignedToId IS NULL OR t.assignedTo.id = :assignedToId)")
+    Page<Ticket> findTicketsWithFiltersPaginated(
+            @Param("status") Status status,
+            @Param("priority") Priority priority,
+            @Param("categoryId") Long categoryId,
+            @Param("createdById") Long createdById,
+            @Param("assignedToId") Long assignedToId,
+            Pageable pageable);
     
-    // Stats queries
+    // Search query
+    @Query("SELECT t FROM Ticket t WHERE " +
+           "LOWER(t.subject) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(t.description) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+    List<Ticket> searchTickets(@Param("searchTerm") String searchTerm);
+    
+    // Fetch with related entities
+    @Query("SELECT t FROM Ticket t " +
+           "LEFT JOIN FETCH t.category " +
+           "LEFT JOIN FETCH t.createdBy " +
+           "LEFT JOIN FETCH t.assignedTo " +
+           "WHERE t.id = :id")
+    Optional<Ticket> findByIdWithDetails(@Param("id") Long id);
+    
+    @Query("SELECT t FROM Ticket t " +
+           "LEFT JOIN FETCH t.category " +
+           "LEFT JOIN FETCH t.createdBy " +
+           "LEFT JOIN FETCH t.assignedTo " +
+           "WHERE t.status = :status")
+    List<Ticket> findByStatusWithDetails(@Param("status") Status status);
+    
+    // Statistics queries
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.status = :status")
-    Long countByStatus(Status status);
+    Long countByStatus(@Param("status") Status status);
     
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.priority = :priority")
-    Long countByPriority(Priority priority);
+    Long countByPriority(@Param("priority") Priority priority);
     
-    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.createdAt BETWEEN :startDate AND :endDate")
-    Long countByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.category.id = :categoryId")
+    Long countByCategory(@Param("categoryId") Long categoryId);
     
-    @Query("SELECT t.status as status, COUNT(t) as count FROM Ticket t GROUP BY t.status")
-    List<Object[]> countByStatusGroup();
+    @Query("SELECT AVG(DATEDIFF(t.resolvedAt, t.createdAt)) FROM Ticket t WHERE t.status = 'RESOLVED'")
+    Double getAverageResolutionTimeInDays();
     
-    @Query("SELECT t.priority as priority, COUNT(t) as count FROM Ticket t GROUP BY t.priority")
-    List<Object[]> countByPriorityGroup();
+    @Query("SELECT COUNT(t) FROM Ticket t WHERE t.createdAt >= :startDate AND t.createdAt <= :endDate")
+    Long countTicketsCreatedBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
     
-    @Query("SELECT FUNCTION('YEAR', t.createdAt) as year, " +
-           "FUNCTION('MONTH', t.createdAt) as month, " +
-           "COUNT(t) as count " +
-           "FROM Ticket t " +
-           "GROUP BY FUNCTION('YEAR', t.createdAt), FUNCTION('MONTH', t.createdAt) " +
-           "ORDER BY year, month")
-    List<Object[]> countByMonth();
-    
-    // Average metrics
-    @Query("SELECT AVG(FUNCTION('TIMESTAMPDIFF', SECOND, t.createdAt, " +
-           "(SELECT MIN(c.createdAt) FROM Comment c WHERE c.ticket = t))) " +
-           "FROM Ticket t WHERE t.status IN ('RESOLVED', 'CLOSED')")
-    Double averageFirstResponseTime();
-    
-    @Query("SELECT AVG(FUNCTION('TIMESTAMPDIFF', SECOND, t.createdAt, t.resolvedAt)) " +
-           "FROM Ticket t WHERE t.status IN ('RESOLVED', 'CLOSED') AND t.resolvedAt IS NOT NULL")
-    Double averageResolutionTime();
+    @Query(value = "SELECT EXTRACT(MONTH FROM created_at) as month, " +
+           "EXTRACT(YEAR FROM created_at) as year, COUNT(*) as ticket_count " +
+           "FROM tickets " +
+           "WHERE created_at >= :startDate AND created_at <= :endDate " +
+           "GROUP BY EXTRACT(YEAR FROM created_at), EXTRACT(MONTH FROM created_at) " +
+           "ORDER BY year, month",
+           nativeQuery = true)
+    List<Object[]> getTicketCountByMonth(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

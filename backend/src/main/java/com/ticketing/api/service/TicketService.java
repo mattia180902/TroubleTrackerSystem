@@ -1,250 +1,346 @@
 package com.ticketing.api.service;
 
 import com.ticketing.api.dto.TicketDTO;
-import com.ticketing.api.dto.TicketStatsDTO;
 import com.ticketing.api.entity.Category;
 import com.ticketing.api.entity.Ticket;
 import com.ticketing.api.entity.TicketHistory;
 import com.ticketing.api.entity.User;
+import com.ticketing.api.enums.Priority;
+import com.ticketing.api.enums.Status;
 import com.ticketing.api.exception.ResourceNotFoundException;
-import com.ticketing.api.mapper.TicketMapper;
 import com.ticketing.api.repository.CategoryRepository;
-import com.ticketing.api.repository.TicketHistoryRepository;
 import com.ticketing.api.repository.TicketRepository;
 import com.ticketing.api.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class TicketService {
-    
+
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
-    private final TicketHistoryRepository ticketHistoryRepository;
-    private final TicketMapper ticketMapper;
-    private final NotificationService notificationService;
-    
+    private final TicketHistoryService historyService;
+
+    @Autowired
+    public TicketService(
+            TicketRepository ticketRepository,
+            UserRepository userRepository,
+            CategoryRepository categoryRepository,
+            TicketHistoryService historyService) {
+        this.ticketRepository = ticketRepository;
+        this.userRepository = userRepository;
+        this.categoryRepository = categoryRepository;
+        this.historyService = historyService;
+    }
+
     public List<TicketDTO> getAllTickets() {
         return ticketRepository.findAll().stream()
-                .map(ticketMapper::toDTO)
+                .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
     
-    public Page<TicketDTO> getTicketsPaginated(Pageable pageable) {
-        return ticketRepository.findAll(pageable)
-                .map(ticketMapper::toDTO);
-    }
-    
-    public List<TicketDTO> getRecentTickets() {
-        return ticketRepository.findTop5ByOrderByCreatedAtDesc().stream()
-                .map(ticketMapper::toDTO)
+    public List<TicketDTO> getTicketsWithFilters(
+            Status status, 
+            Priority priority, 
+            Long categoryId, 
+            Long createdById, 
+            Long assignedToId) {
+        return ticketRepository.findTicketsWithFilters(status, priority, categoryId, createdById, assignedToId)
+                .stream()
+                .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
     
+    public Page<TicketDTO> getTicketsWithFiltersPaginated(
+            Status status, 
+            Priority priority, 
+            Long categoryId, 
+            Long createdById, 
+            Long assignedToId,
+            Pageable pageable) {
+        return ticketRepository.findTicketsWithFiltersPaginated(
+                status, priority, categoryId, createdById, assignedToId, pageable)
+                .map(this::convertToDTO);
+    }
+    
+    public List<TicketDTO> searchTickets(String searchTerm) {
+        return ticketRepository.searchTickets(searchTerm)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
     public TicketDTO getTicketById(Long id) {
-        Ticket ticket = ticketRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Ticket", "id", id));
-        return ticketMapper.toDTO(ticket);
+        Ticket ticket = ticketRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
+        
+        return convertToDTOWithDetails(ticket);
     }
-    
+
     @Transactional
-    public TicketDTO createTicket(TicketDTO ticketDTO) {
-        // Get current user
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
+    public TicketDTO createTicket(TicketDTO ticketDTO, Long userId) {
+        User createdBy = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
         
-        // Set created by user
-        ticketDTO.setCreatedById(currentUser.getId());
+        Ticket ticket = new Ticket();
+        ticket.setSubject(ticketDTO.getSubject());
+        ticket.setDescription(ticketDTO.getDescription());
+        ticket.setStatus(Status.OPEN);
+        ticket.setPriority(ticketDTO.getPriority());
+        ticket.setCreatedBy(createdBy);
+        ticket.setCreatedAt(LocalDateTime.now());
         
-        // Set default status if not provided
-        if (ticketDTO.getStatus() == null) {
-            ticketDTO.setStatus(Ticket.TicketStatus.OPEN);
-        }
-        
-        // Set default priority if not provided
-        if (ticketDTO.getPriority() == null) {
-            ticketDTO.setPriority(Ticket.TicketPriority.MEDIUM);
-        }
-        
-        // Validate category if provided
+        // Set category if provided
         if (ticketDTO.getCategoryId() != null) {
-            categoryRepository.findById(ticketDTO.getCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category", "id", ticketDTO.getCategoryId()));
+            Category category = categoryRepository.findById(ticketDTO.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + ticketDTO.getCategoryId()));
+            ticket.setCategory(category);
         }
         
-        // Validate assigned user if provided
+        // Set assignee if provided
         if (ticketDTO.getAssignedToId() != null) {
-            userRepository.findById(ticketDTO.getAssignedToId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", ticketDTO.getAssignedToId()));
+            User assignedTo = userRepository.findById(ticketDTO.getAssignedToId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + ticketDTO.getAssignedToId()));
+            ticket.setAssignedTo(assignedTo);
+            ticket.setStatus(Status.IN_PROGRESS);
         }
         
-        Ticket ticket = ticketMapper.toEntity(ticketDTO);
+        // Set due date if provided
+        if (ticketDTO.getDueDate() != null) {
+            ticket.setDueDate(ticketDTO.getDueDate());
+        }
+        
         Ticket savedTicket = ticketRepository.save(ticket);
         
-        // Create ticket history
-        createTicketHistory(savedTicket, currentUser, "CREATED", null, null, null);
+        // Create ticket history entry
+        historyService.createTicketHistory(savedTicket, "status", null, savedTicket.getStatus().name(), userId);
         
-        // Send notification to assigned user if any
-        if (savedTicket.getAssignedTo() != null) {
-            notificationService.createTicketAssignedNotification(savedTicket, savedTicket.getAssignedTo());
+        return convertToDTO(savedTicket);
+    }
+
+    @Transactional
+    public TicketDTO updateTicket(Long id, TicketDTO ticketDTO, Long userId) {
+        Ticket existingTicket = ticketRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
+        
+        User updatedBy = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        
+        // Track changes for history
+        trackChanges(existingTicket, ticketDTO, userId);
+        
+        // Update fields
+        existingTicket.setSubject(ticketDTO.getSubject());
+        existingTicket.setDescription(ticketDTO.getDescription());
+        existingTicket.setPriority(ticketDTO.getPriority());
+        existingTicket.setUpdatedAt(LocalDateTime.now());
+        
+        // Update category if changed
+        if (ticketDTO.getCategoryId() != null && 
+                (existingTicket.getCategory() == null || !existingTicket.getCategory().getId().equals(ticketDTO.getCategoryId()))) {
+            Category category = categoryRepository.findById(ticketDTO.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + ticketDTO.getCategoryId()));
+            existingTicket.setCategory(category);
         }
         
-        return ticketMapper.toDTO(savedTicket);
+        // Update assigned user if changed
+        if (ticketDTO.getAssignedToId() != null && 
+                (existingTicket.getAssignedTo() == null || !existingTicket.getAssignedTo().getId().equals(ticketDTO.getAssignedToId()))) {
+            User assignedTo = userRepository.findById(ticketDTO.getAssignedToId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + ticketDTO.getAssignedToId()));
+            existingTicket.setAssignedTo(assignedTo);
+            
+            // If ticket is open and being assigned, automatically set to in progress
+            if (existingTicket.getStatus() == Status.OPEN) {
+                existingTicket.setStatus(Status.IN_PROGRESS);
+                historyService.createTicketHistory(existingTicket, "status", Status.OPEN.name(), Status.IN_PROGRESS.name(), userId);
+            }
+        }
+        
+        // Update status if changed
+        if (ticketDTO.getStatus() != null && existingTicket.getStatus() != ticketDTO.getStatus()) {
+            Status oldStatus = existingTicket.getStatus();
+            existingTicket.setStatus(ticketDTO.getStatus());
+            
+            // Update timestamp based on status change
+            if (ticketDTO.getStatus() == Status.RESOLVED) {
+                existingTicket.setResolvedAt(LocalDateTime.now());
+            } else if (ticketDTO.getStatus() == Status.CLOSED) {
+                existingTicket.setClosedAt(LocalDateTime.now());
+            }
+            
+            historyService.createTicketHistory(existingTicket, "status", oldStatus.name(), ticketDTO.getStatus().name(), userId);
+        }
+        
+        // Update due date if provided
+        if (ticketDTO.getDueDate() != null) {
+            existingTicket.setDueDate(ticketDTO.getDueDate());
+        }
+        
+        Ticket updatedTicket = ticketRepository.save(existingTicket);
+        return convertToDTO(updatedTicket);
+    }
+
+    @Transactional
+    public void deleteTicket(Long id) {
+        if (!ticketRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Ticket not found with id: " + id);
+        }
+        ticketRepository.deleteById(id);
     }
     
     @Transactional
-    public TicketDTO updateTicket(Long id, TicketDTO ticketDTO) {
-        // Get current user
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String username = authentication.getName();
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
-        
+    public TicketDTO changeStatus(Long id, Status newStatus, Long userId) {
         Ticket ticket = ticketRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Ticket", "id", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
         
-        // Track changes for history
-        Ticket.TicketStatus oldStatus = ticket.getStatus();
-        Ticket.TicketPriority oldPriority = ticket.getPriority();
-        User oldAssignedTo = ticket.getAssignedTo();
-        Category oldCategory = ticket.getCategory();
+        Status oldStatus = ticket.getStatus();
         
-        // Update fields
-        ticketMapper.updateTicketFromDTO(ticketDTO, ticket);
+        if (oldStatus == newStatus) {
+            return convertToDTO(ticket);
+        }
+        
+        ticket.setStatus(newStatus);
+        ticket.setUpdatedAt(LocalDateTime.now());
+        
+        if (newStatus == Status.RESOLVED) {
+            ticket.setResolvedAt(LocalDateTime.now());
+        } else if (newStatus == Status.CLOSED) {
+            ticket.setClosedAt(LocalDateTime.now());
+        } else if ((newStatus == Status.OPEN || newStatus == Status.IN_PROGRESS) && 
+                  (oldStatus == Status.RESOLVED || oldStatus == Status.CLOSED)) {
+            // If reopening a resolved or closed ticket
+            ticket.setResolvedAt(null);
+            ticket.setClosedAt(null);
+        }
         
         Ticket updatedTicket = ticketRepository.save(ticket);
         
-        // Create ticket history for status change
-        if (oldStatus != updatedTicket.getStatus()) {
-            createTicketHistory(updatedTicket, currentUser, "STATUS_CHANGED", 
-                    "status", oldStatus.name(), updatedTicket.getStatus().name());
-            
-            // Send notification for status change
-            if (updatedTicket.getCreatedBy() != null && !updatedTicket.getCreatedBy().equals(currentUser)) {
-                notificationService.createTicketStatusChangedNotification(updatedTicket, updatedTicket.getCreatedBy());
-            }
-        }
+        // Create history entry
+        historyService.createTicketHistory(updatedTicket, "status", oldStatus.name(), newStatus.name(), userId);
         
-        // Create ticket history for priority change
-        if (oldPriority != updatedTicket.getPriority()) {
-            createTicketHistory(updatedTicket, currentUser, "PRIORITY_CHANGED", 
-                    "priority", oldPriority.name(), updatedTicket.getPriority().name());
-        }
-        
-        // Create ticket history for assignment change
-        if (!Objects.equals(
-                oldAssignedTo != null ? oldAssignedTo.getId() : null, 
-                updatedTicket.getAssignedTo() != null ? updatedTicket.getAssignedTo().getId() : null)) {
-            
-            String oldValue = oldAssignedTo != null ? oldAssignedTo.getUsername() : "Unassigned";
-            String newValue = updatedTicket.getAssignedTo() != null ? updatedTicket.getAssignedTo().getUsername() : "Unassigned";
-            
-            createTicketHistory(updatedTicket, currentUser, "ASSIGNMENT_CHANGED", 
-                    "assignedTo", oldValue, newValue);
-            
-            // Send notification to newly assigned user
-            if (updatedTicket.getAssignedTo() != null && !updatedTicket.getAssignedTo().equals(oldAssignedTo)) {
-                notificationService.createTicketAssignedNotification(updatedTicket, updatedTicket.getAssignedTo());
-            }
-        }
-        
-        // Create ticket history for category change
-        if (!Objects.equals(
-                oldCategory != null ? oldCategory.getId() : null, 
-                updatedTicket.getCategory() != null ? updatedTicket.getCategory().getId() : null)) {
-            
-            String oldValue = oldCategory != null ? oldCategory.getName() : "Uncategorized";
-            String newValue = updatedTicket.getCategory() != null ? updatedTicket.getCategory().getName() : "Uncategorized";
-            
-            createTicketHistory(updatedTicket, currentUser, "CATEGORY_CHANGED", 
-                    "category", oldValue, newValue);
-        }
-        
-        return ticketMapper.toDTO(updatedTicket);
+        return convertToDTO(updatedTicket);
     }
     
     @Transactional
-    public void deleteTicket(Long id) {
+    public TicketDTO assignTicket(Long id, Long assigneeId, Long userId) {
         Ticket ticket = ticketRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Ticket", "id", id));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
         
-        ticketRepository.delete(ticket);
+        User assignee = userRepository.findById(assigneeId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + assigneeId));
+        
+        String oldAssignee = ticket.getAssignedTo() != null ? ticket.getAssignedTo().getUsername() : "None";
+        
+        ticket.setAssignedTo(assignee);
+        ticket.setUpdatedAt(LocalDateTime.now());
+        
+        // If ticket is open, change to in progress
+        if (ticket.getStatus() == Status.OPEN) {
+            Status oldStatus = ticket.getStatus();
+            ticket.setStatus(Status.IN_PROGRESS);
+            historyService.createTicketHistory(ticket, "status", oldStatus.name(), Status.IN_PROGRESS.name(), userId);
+        }
+        
+        Ticket updatedTicket = ticketRepository.save(ticket);
+        
+        // Create history entry
+        historyService.createTicketHistory(updatedTicket, "assignee", oldAssignee, assignee.getUsername(), userId);
+        
+        return convertToDTO(updatedTicket);
     }
     
-    @Transactional
-    public List<TicketDTO> getTicketsForUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    private void trackChanges(Ticket existingTicket, TicketDTO newTicketDTO, Long userId) {
+        // Track subject change
+        if (!existingTicket.getSubject().equals(newTicketDTO.getSubject())) {
+            historyService.createTicketHistory(
+                    existingTicket, 
+                    "subject", 
+                    existingTicket.getSubject(), 
+                    newTicketDTO.getSubject(), 
+                    userId);
+        }
         
-        return ticketRepository.findByCreatedBy(user, Pageable.unpaged()).stream()
-                .map(ticketMapper::toDTO)
-                .collect(Collectors.toList());
+        // Track priority change
+        if (existingTicket.getPriority() != newTicketDTO.getPriority()) {
+            historyService.createTicketHistory(
+                    existingTicket, 
+                    "priority", 
+                    existingTicket.getPriority().name(), 
+                    newTicketDTO.getPriority().name(), 
+                    userId);
+        }
+        
+        // Track category change
+        Long existingCategoryId = existingTicket.getCategory() != null ? existingTicket.getCategory().getId() : null;
+        if ((existingCategoryId == null && newTicketDTO.getCategoryId() != null) || 
+            (existingCategoryId != null && !existingCategoryId.equals(newTicketDTO.getCategoryId()))) {
+            
+            String oldCategory = existingTicket.getCategory() != null ? existingTicket.getCategory().getName() : "None";
+            String newCategory = "Unknown";
+            
+            if (newTicketDTO.getCategoryId() != null) {
+                categoryRepository.findById(newTicketDTO.getCategoryId()).ifPresent(category -> {
+                    newCategory = category.getName();
+                });
+            }
+            
+            historyService.createTicketHistory(
+                    existingTicket, 
+                    "category", 
+                    oldCategory, 
+                    newCategory, 
+                    userId);
+        }
     }
     
-    @Transactional
-    public List<TicketDTO> getTicketsAssignedToUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    private TicketDTO convertToDTO(Ticket ticket) {
+        TicketDTO dto = new TicketDTO();
+        dto.setId(ticket.getId());
+        dto.setSubject(ticket.getSubject());
+        dto.setDescription(ticket.getDescription());
+        dto.setStatus(ticket.getStatus());
+        dto.setPriority(ticket.getPriority());
+        dto.setCreatedAt(ticket.getCreatedAt());
+        dto.setUpdatedAt(ticket.getUpdatedAt());
+        dto.setResolvedAt(ticket.getResolvedAt());
+        dto.setClosedAt(ticket.getClosedAt());
+        dto.setDueDate(ticket.getDueDate());
         
-        return ticketRepository.findByAssignedTo(user, Pageable.unpaged()).stream()
-                .map(ticketMapper::toDTO)
-                .collect(Collectors.toList());
+        // Set relations
+        if (ticket.getCategory() != null) {
+            dto.setCategoryId(ticket.getCategory().getId());
+            dto.setCategoryName(ticket.getCategory().getName());
+        }
+        
+        if (ticket.getCreatedBy() != null) {
+            dto.setCreatedById(ticket.getCreatedBy().getId());
+            dto.setCreatedByName(ticket.getCreatedBy().getFirstName() + " " + ticket.getCreatedBy().getLastName());
+        }
+        
+        if (ticket.getAssignedTo() != null) {
+            dto.setAssignedToId(ticket.getAssignedTo().getId());
+            dto.setAssignedToName(ticket.getAssignedTo().getFirstName() + " " + ticket.getAssignedTo().getLastName());
+        }
+        
+        return dto;
     }
     
-    @Transactional
-    public TicketStatsDTO getTicketStats() {
-        long totalTickets = ticketRepository.count();
-        long openTickets = ticketRepository.countOpenTickets();
-        long inProgressTickets = ticketRepository.countInProgressTickets();
-        long resolvedTickets = ticketRepository.countResolvedTickets();
-        long closedTickets = ticketRepository.countClosedTickets();
-        long highPriorityCount = ticketRepository.countHighPriorityTickets();
-        long mediumPriorityCount = ticketRepository.countMediumPriorityTickets();
-        long lowPriorityCount = ticketRepository.countLowPriorityTickets();
+    private TicketDTO convertToDTOWithDetails(Ticket ticket) {
+        TicketDTO dto = convertToDTO(ticket);
         
-        // Calculate average response time (simplified)
-        String avgResponseTime = "N/A"; // This would be calculated in a real implementation
+        // Additional fields like comments, history, etc. would be loaded here
+        // This would typically involve loading from CommentService, HistoryService, etc.
         
-        return TicketStatsDTO.builder()
-                .total(totalTickets)
-                .openTickets(openTickets)
-                .inProgressTickets(inProgressTickets)
-                .resolvedTickets(resolvedTickets)
-                .closedTickets(closedTickets)
-                .highPriorityCount(highPriorityCount)
-                .mediumPriorityCount(mediumPriorityCount)
-                .lowPriorityCount(lowPriorityCount)
-                .avgResponseTime(avgResponseTime)
-                .build();
-    }
-    
-    private void createTicketHistory(Ticket ticket, User user, String action, 
-                                    String fieldName, String oldValue, String newValue) {
-        TicketHistory history = TicketHistory.builder()
-                .ticket(ticket)
-                .user(user)
-                .action(action)
-                .fieldName(fieldName)
-                .oldValue(oldValue)
-                .newValue(newValue)
-                .build();
-        
-        ticketHistoryRepository.save(history);
+        return dto;
     }
 }

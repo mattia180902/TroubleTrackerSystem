@@ -1,94 +1,135 @@
 package com.ticketing.api.controller;
 
 import com.ticketing.api.dto.TicketDTO;
-import com.ticketing.api.dto.TicketStatsDTO;
+import com.ticketing.api.dto.TicketHistoryDTO;
+import com.ticketing.api.enums.Priority;
+import com.ticketing.api.enums.Status;
+import com.ticketing.api.service.TicketHistoryService;
 import com.ticketing.api.service.TicketService;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/tickets")
-@RequiredArgsConstructor
+@RequestMapping("/tickets")
 public class TicketController {
-    
+
     private final TicketService ticketService;
-    
+    private final TicketHistoryService historyService;
+
+    @Autowired
+    public TicketController(TicketService ticketService, TicketHistoryService historyService) {
+        this.ticketService = ticketService;
+        this.historyService = historyService;
+    }
+
     @GetMapping
-    public ResponseEntity<List<TicketDTO>> getAllTickets() {
-        List<TicketDTO> tickets = ticketService.getAllTickets();
+    public ResponseEntity<List<TicketDTO>> getAllTickets(
+            @RequestParam(required = false) Status status,
+            @RequestParam(required = false) Priority priority,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long createdById,
+            @RequestParam(required = false) Long assignedToId) {
+        
+        List<TicketDTO> tickets = ticketService.getTicketsWithFilters(
+                status, priority, categoryId, createdById, assignedToId);
         return ResponseEntity.ok(tickets);
     }
-    
-    @GetMapping("/paginated")
+
+    @GetMapping("/paged")
     public ResponseEntity<Page<TicketDTO>> getTicketsPaginated(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDirection) {
+            @RequestParam(required = false) Status status,
+            @RequestParam(required = false) Priority priority,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long createdById,
+            @RequestParam(required = false) Long assignedToId,
+            @PageableDefault(size = 10) Pageable pageable) {
         
-        Sort.Direction direction = sortDirection.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
-        Page<TicketDTO> tickets = ticketService.getTicketsPaginated(pageable);
-        
+        Page<TicketDTO> tickets = ticketService.getTicketsWithFiltersPaginated(
+                status, priority, categoryId, createdById, assignedToId, pageable);
         return ResponseEntity.ok(tickets);
     }
-    
-    @GetMapping("/recent")
-    public ResponseEntity<List<TicketDTO>> getRecentTickets() {
-        List<TicketDTO> tickets = ticketService.getRecentTickets();
-        return ResponseEntity.ok(tickets);
+
+    @GetMapping("/search")
+    public ResponseEntity<List<TicketDTO>> searchTickets(@RequestParam String query) {
+        return ResponseEntity.ok(ticketService.searchTickets(query));
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<TicketDTO> getTicketById(@PathVariable Long id) {
-        TicketDTO ticket = ticketService.getTicketById(id);
-        return ResponseEntity.ok(ticket);
+        return ResponseEntity.ok(ticketService.getTicketById(id));
     }
-    
+
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<TicketHistoryDTO>> getTicketHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(historyService.getHistoryByTicketId(id));
+    }
+
     @PostMapping
-    public ResponseEntity<TicketDTO> createTicket(@Valid @RequestBody TicketDTO ticketDTO) {
-        TicketDTO createdTicket = ticketService.createTicket(ticketDTO);
-        return new ResponseEntity<>(createdTicket, HttpStatus.CREATED);
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<TicketDTO> createTicket(
+            @Valid @RequestBody TicketDTO ticketDTO,
+            Authentication authentication) {
+        
+        // In a real implementation, we would extract user id from the Authentication object
+        // For now, we're using a placeholder
+        Long userId = 1L; // Placeholder
+        
+        return new ResponseEntity<>(ticketService.createTicket(ticketDTO, userId), HttpStatus.CREATED);
     }
-    
+
     @PutMapping("/{id}")
-    public ResponseEntity<TicketDTO> updateTicket(@PathVariable Long id, @Valid @RequestBody TicketDTO ticketDTO) {
-        TicketDTO updatedTicket = ticketService.updateTicket(id, ticketDTO);
-        return ResponseEntity.ok(updatedTicket);
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT') or @ticketSecurity.isTicketCreator(#id, authentication)")
+    public ResponseEntity<TicketDTO> updateTicket(
+            @PathVariable Long id,
+            @Valid @RequestBody TicketDTO ticketDTO,
+            Authentication authentication) {
+        
+        // In a real implementation, we would extract user id from the Authentication object
+        Long userId = 1L; // Placeholder
+        
+        return ResponseEntity.ok(ticketService.updateTicket(id, ticketDTO, userId));
     }
-    
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteTicket(@PathVariable Long id) {
         ticketService.deleteTicket(id);
         return ResponseEntity.noContent().build();
     }
-    
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<TicketDTO>> getTicketsForUser(@PathVariable Long userId) {
-        List<TicketDTO> tickets = ticketService.getTicketsForUser(userId);
-        return ResponseEntity.ok(tickets);
+
+    @PostMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT') or @ticketSecurity.isTicketCreator(#id, authentication)")
+    public ResponseEntity<TicketDTO> changeStatus(
+            @PathVariable Long id,
+            @RequestParam Status status,
+            Authentication authentication) {
+        
+        // In a real implementation, we would extract user id from the Authentication object
+        Long userId = 1L; // Placeholder
+        
+        return ResponseEntity.ok(ticketService.changeStatus(id, status, userId));
     }
-    
-    @GetMapping("/assigned/{userId}")
-    public ResponseEntity<List<TicketDTO>> getTicketsAssignedToUser(@PathVariable Long userId) {
-        List<TicketDTO> tickets = ticketService.getTicketsAssignedToUser(userId);
-        return ResponseEntity.ok(tickets);
-    }
-    
-    @GetMapping("/stats")
-    public ResponseEntity<TicketStatsDTO> getTicketStats() {
-        TicketStatsDTO stats = ticketService.getTicketStats();
-        return ResponseEntity.ok(stats);
+
+    @PostMapping("/{id}/assign")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
+    public ResponseEntity<TicketDTO> assignTicket(
+            @PathVariable Long id,
+            @RequestParam Long assigneeId,
+            Authentication authentication) {
+        
+        // In a real implementation, we would extract user id from the Authentication object
+        Long userId = 1L; // Placeholder
+        
+        return ResponseEntity.ok(ticketService.assignTicket(id, assigneeId, userId));
     }
 }
